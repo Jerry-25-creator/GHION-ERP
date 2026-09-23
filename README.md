@@ -1,6 +1,6 @@
  GHION ERP — Manufacturing & Accounting System
 
-A web-based ERP built for **GHION INVESTMENTS AND ENTERPRISE LTD**, a tissue and
+A web-based ERP system built for **GHION INVESTMENTS AND ENTERPRISE LTD**, a tissue and
 paper-products manufacturer in Uganda. It replaces Excel-based record keeping with a
 single, auditable system covering the factory floor to the financial statements.
 
