@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environment
+venv/
+.venv/
+
+# Secrets / local configuration
+.env
+
+# Generated files (re-created by train_model.py and app.py)
+models/*.pkl
+models/*.json
+database/*.db
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

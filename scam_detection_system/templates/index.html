@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Home - Scam Detection System{% endblock %}
+
+{% block content %}
+<!-- Hero section -->
+<section class="hero text-center py-5 px-3 mb-5">
+    <h1 class="display-6 fw-semibold mb-3">Machine Learning-Based Scam Detection System</h1>
+    <p class="lead mx-auto mb-4 hero-text">
+        Paste a text message you are unsure about. A machine learning model trained on
+        labelled examples will estimate whether it looks <strong>legitimate</strong> or
+        like a <strong>potential scam</strong>.
+    </p>
+    <a href="{{ url_for('analyze') }}" class="btn btn-primary btn-lg px-4">Analyze a Message</a>
+</section>
+
+<!-- How it works -->
+<section class="mb-5">
+    <h2 class="h4 mb-4 text-center">How scam detection works</h2>
+    <div class="row g-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card h-100 step-card">
+                <div class="card-body">
+                    <div class="step-number">1</div>
+                    <h3 class="h6">You submit a message</h3>
+                    <p class="small text-muted mb-0">The text is checked and cleaned (for example
+                        converted to lowercase). Links are never opened.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card h-100 step-card">
+                <div class="card-body">
+                    <div class="step-number">2</div>
+                    <h3 class="h6">Text becomes numbers</h3>
+                    <p class="small text-muted mb-0">TF-IDF converts words into numbers that show
+                        how important each word is in the message.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card h-100 step-card">
+                <div class="card-body">
+                    <div class="step-number">3</div>
+                    <h3 class="h6">The model predicts</h3>
+                    <p class="small text-muted mb-0">A classifier trained on real labelled messages
+                        estimates whether the message resembles known scams.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card h-100 step-card">
+                <div class="card-body">
+                    <div class="step-number">4</div>
+                    <h3 class="h6">You get an explanation</h3>
+                    <p class="small text-muted mb-0">You see the prediction, a confidence estimate
+                        and any warning signs found in the text.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Important notice -->
+<section class="mb-4">
+    <div class="alert alert-info notice mb-0" role="note">
+        <h2 class="h6 mb-2">Please verify independently</h2>
+        <p class="mb-0 small">
+            This tool gives an automated assessment, not a guarantee. A legitimate message can be
+            flagged by mistake, and a new type of scam may not be recognised. Before sending money,
+            sharing a PIN or password, or clicking a link, contact the organisation directly using
+            details you already trust.
+        </p>
+    </div>
+</section>
+{% endblock %}
