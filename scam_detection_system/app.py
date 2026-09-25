@@ -7,6 +7,9 @@ basic security settings. The trained ML model is connected in Phase 3.
 Run with:  python app.py
 """
 
+import secrets
+import warnings
+
 from flask import Flask, jsonify, render_template, request
 from flask_wtf.csrf import CSRFProtect
 
@@ -25,12 +28,26 @@ def create_app(config_class=Config):
     """
     app = Flask(__name__)
     app.config.from_object(config_class)
+    ensure_secret_key(app)
     csrf.init_app(app)
 
     register_routes(app)
     register_error_handlers(app)
     register_security_headers(app)
     return app
+
+
+def ensure_secret_key(app):
+    """
+    Use SECRET_KEY from .env. If it is missing, generate a random temporary
+    key so the app still starts during development; sessions and CSRF tokens
+    then become invalid whenever the server restarts.
+    """
+    key = app.config.get("SECRET_KEY", "")
+    if not key or key == "replace-me-with-a-long-random-value":
+        warnings.warn("SECRET_KEY is not set in .env - using a temporary random key. "
+                      "See .env.example for how to generate one.")
+        app.config["SECRET_KEY"] = secrets.token_hex(32)
 
 
 # ----------------------------------------------------------------------

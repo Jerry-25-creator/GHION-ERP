@@ -1,7 +1,7 @@
 """
 test_api.py - Tests for the Flask application.
 
-Phase 1: basic smoke tests (pages load, health check, error handling).
+Basic tests (pages load, health check, error handling).
 More tests (prediction API, invalid input, database) are added later.
 
 Run with:  pytest -v

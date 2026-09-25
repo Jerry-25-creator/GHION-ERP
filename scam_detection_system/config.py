@@ -6,8 +6,6 @@ file by python-dotenv), so no secrets are hard-coded in the source code.
 """
 
 import os
-import secrets
-import warnings
 
 from dotenv import load_dotenv
 
@@ -27,28 +25,12 @@ def _get_int(name, default):
         return default
 
 
-def _get_secret_key():
-    """
-    Return SECRET_KEY from the environment.
-
-    If it is missing, generate a random temporary key so the app still
-    starts during development. Sessions will not survive a restart in that
-    case, so a warning is shown.
-    """
-    key = os.environ.get("SECRET_KEY", "")
-    if not key or key == "replace-me-with-a-long-random-value":
-        warnings.warn(
-            "SECRET_KEY is not set in .env - using a temporary random key. "
-            "See .env.example for how to generate one."
-        )
-        key = secrets.token_hex(32)
-    return key
-
-
 class Config:
     """Default configuration used by app.py."""
 
-    SECRET_KEY = _get_secret_key()
+    # Read from .env. If it is missing, app.py generates a temporary key and
+    # shows a warning (training scripts do not need a secret key).
+    SECRET_KEY = os.environ.get("SECRET_KEY", "")
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
     HOST = os.environ.get("FLASK_HOST", "127.0.0.1")
     PORT = _get_int("FLASK_PORT", 5000)
@@ -76,4 +58,5 @@ class TestConfig(Config):
     """Configuration used by the automated tests."""
 
     TESTING = True
+    SECRET_KEY = "test-only-secret-key"
     WTF_CSRF_ENABLED = False

@@ -13,6 +13,7 @@ venv/
 # Generated files (re-created by train_model.py and app.py)
 models/*.pkl
 models/*.json
+models/*.csv
 database/*.db
 
 # Editor / OS
