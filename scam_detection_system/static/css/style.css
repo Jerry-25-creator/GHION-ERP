@@ -1,0 +1,102 @@
+/* ------------------------------------------------------------
+   Scam Detection System - custom styles (on top of Bootstrap 5)
+   ------------------------------------------------------------ */
+
+:root {
+    --brand: #1f4e79;          /* calm navy blue */
+    --brand-light: #eaf1f8;
+    --safe: #1e7b4f;           /* green for "no obvious scam patterns" */
+    --safe-bg: #e9f6ef;
+    --warn: #b35900;           /* amber for "potential scam" (not alarming red) */
+    --warn-bg: #fff4e5;
+    --text-muted: #5f6b76;
+}
+
+body {
+    background-color: #f7f9fb;
+    color: #22303c;
+}
+
+/* Navigation bar and footer */
+.app-navbar {
+    background-color: var(--brand);
+}
+
+.app-footer {
+    background-color: #ffffff;
+    border-top: 1px solid #dde3ea;
+    color: var(--text-muted);
+}
+
+/* Home page hero */
+.hero {
+    background-color: var(--brand-light);
+    border-radius: 1rem;
+}
+
+.hero-text {
+    max-width: 720px;
+}
+
+/* "How it works" cards */
+.step-card {
+    border: 1px solid #dde3ea;
+    border-radius: 0.75rem;
+}
+
+.step-number {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background-color: var(--brand);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.notice {
+    border-radius: 0.75rem;
+}
+
+/* Analyze page */
+.message-box {
+    resize: vertical;
+    min-height: 180px;
+    font-size: 1rem;
+}
+
+/* Result cards (used from Phase 3) */
+.result-card {
+    border-radius: 0.75rem;
+    border-width: 1px;
+    border-style: solid;
+    padding: 1.25rem;
+}
+
+.result-legitimate {
+    background-color: var(--safe-bg);
+    border-color: var(--safe);
+}
+
+.result-scam {
+    background-color: var(--warn-bg);
+    border-color: var(--warn);
+}
+
+.result-info {
+    background-color: #ffffff;
+    border-color: #dde3ea;
+}
+
+/* Small screens */
+@media (max-width: 576px) {
+    .hero {
+        border-radius: 0.5rem;
+    }
+    .display-6 {
+        font-size: 1.6rem;
+    }
+}
