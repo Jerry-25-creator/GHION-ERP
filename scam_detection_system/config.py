@@ -6,6 +6,7 @@ file by python-dotenv), so no secrets are hard-coded in the source code.
 """
 
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -52,6 +53,15 @@ class Config:
     WTF_CSRF_ENABLED = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    # Set SESSION_COOKIE_SECURE=1 when the site is served over HTTPS.
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
+    # Admins are logged out automatically after this many minutes.
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=_get_int("ADMIN_SESSION_MINUTES", 60))
+
+    # --- Privacy ------------------------------------------------------
+    # Replace phone numbers and e-mail addresses with placeholders in the
+    # stored copy of each message (the prediction uses the original text).
+    REDACT_STORED_MESSAGES = os.environ.get("REDACT_STORED_MESSAGES", "1") == "1"
 
 
 class TestConfig(Config):

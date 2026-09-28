@@ -34,6 +34,25 @@
                     <a class="nav-link {% if request.endpoint == 'analyze' %}active{% endif %}"
                        href="{{ url_for('analyze') }}">Analyze a Message</a>
                 </li>
+                {% if current_admin %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"
+                       href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'admin.history' %}active{% endif %}"
+                       href="{{ url_for('admin.history') }}">History</a>
+                </li>
+                <li class="nav-item">
+                    <!-- Logout is a POST form (with CSRF token), not a link -->
+                    <form method="post" action="{{ url_for('admin.logout') }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-link nav-link">
+                            Log out ({{ current_admin.username }})
+                        </button>
+                    </form>
+                </li>
+                {% endif %}
             </ul>
         </div>
     </div>
@@ -41,6 +60,14 @@
 
 <main class="flex-grow-1 py-4">
     <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, text in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ text }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endwith %}
         {% block content %}{% endblock %}
     </div>
 </main>
@@ -49,6 +76,9 @@
     <div class="container small text-center">
         Results are automated assessments produced by a machine learning model and are
         <strong>not a guarantee</strong>. Always verify suspicious messages independently.
+        {% if not current_admin %}
+        <span class="d-block mt-1"><a href="{{ url_for('admin.login') }}" class="footer-link">Admin login</a></span>
+        {% endif %}
     </div>
 </footer>
 

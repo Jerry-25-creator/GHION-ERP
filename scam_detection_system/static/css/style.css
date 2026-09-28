@@ -152,3 +152,76 @@ body {
     padding: 0.75rem;
     font-size: 0.95rem;
 }
+
+/* Admin pages (Phase 4) */
+.footer-link {
+    color: var(--text-muted);
+}
+
+.stat-card {
+    border: 1px solid #dde3ea;
+    border-radius: 0.75rem;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.9rem;
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+}
+
+.text-scam { color: var(--warn); }
+.text-legitimate { color: var(--safe); }
+
+.badge-scam {
+    background-color: var(--warn-bg);
+    color: var(--warn);
+    border: 1px solid var(--warn);
+}
+
+.badge-legitimate {
+    background-color: var(--safe-bg);
+    color: var(--safe);
+    border: 1px solid var(--safe);
+}
+
+.metric-box {
+    background-color: var(--brand-light);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+}
+
+.metric-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.confusion-table th {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.cm-correct { background-color: var(--safe-bg); font-weight: 600; }
+.cm-wrong { background-color: var(--warn-bg); font-weight: 600; }
+
+/* Long messages in tables wrap instead of stretching the page */
+.message-cell {
+    min-width: 220px;
+    max-width: 480px;
+    overflow-wrap: anywhere;
+    font-size: 0.9rem;
+}
+
+.navbar .btn-link.nav-link {
+    text-decoration: none;
+}

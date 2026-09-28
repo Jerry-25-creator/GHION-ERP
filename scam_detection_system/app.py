@@ -5,6 +5,9 @@ Pages:   /            home page
          /analyze     form to analyse a message (GET shows the form, POST shows the result)
 API:     /api/health  GET  - is the server running?
          /api/predict POST - analyse a message sent as JSON
+Admin:   /login, /dashboard, /history   (see admin.py)
+
+Every analysis is stored in the SQLite database (see db.py).
 
 The trained model (models/model.pkl + models/vectorizer.pkl) is loaded once
 when the app starts. If it is missing, the pages still work and the user is
@@ -13,14 +16,16 @@ told to train the model first.
 Run with:  python app.py
 """
 
+import os
 import secrets
 import warnings
-
-import os
+from datetime import datetime
 
 from flask import Flask, current_app, jsonify, render_template, request
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
+import admin
+import db
 from config import Config
 from scam_detector.predictor import SCAM, ModelNotAvailableError, ScamPredictor
 
@@ -43,10 +48,13 @@ def create_app(config_class=Config):
     ensure_secret_key(app)
     csrf.init_app(app)
     load_predictor(app)
+    db.init_app(app)
 
     register_routes(app)
+    app.register_blueprint(admin.bp)
     register_error_handlers(app)
     register_security_headers(app)
+    register_template_filters(app)
     return app
 
 
@@ -106,11 +114,15 @@ def validate_message(value, max_length):
     return message, None
 
 
+def format_confidence(confidence):
+    """0.937 -> '94%'. Never shows 100%: the model can never be completely certain."""
+    return "over 99%" if confidence >= 0.995 else f"{confidence:.0%}"
+
+
 def describe_result(result):
     """Turn a raw prediction into the wording and styling shown on the page."""
     confidence = result["confidence"]
-    # Never display 100%: the model can never be completely certain.
-    percent = "over 99%" if confidence >= 0.995 else f"{confidence:.0%}"
+    percent = format_confidence(confidence)
     if confidence >= 0.9:
         certainty = "High"
     elif confidence >= 0.7:
@@ -132,6 +144,18 @@ def describe_result(result):
 
     return {"title": title, "summary": summary, "css": css, "percent": percent,
             "certainty": certainty, "confidence_width": round(confidence * 100)}
+
+
+def store_analysis(message, result, source):
+    """
+    Save an analysis to the history table. A database problem must not stop
+    the user from getting their result, so errors are logged, not raised.
+    """
+    try:
+        predictor = current_app.extensions.get("predictor")
+        db.save_analysis(message, result, source, predictor.model_name if predictor else None)
+    except db.DatabaseError:
+        current_app.logger.error("Analysis could not be saved to the history")
 
 
 # ----------------------------------------------------------------------
@@ -166,6 +190,7 @@ def register_routes(app):
                       "Please ask the administrator to train it (python train_model.py).",
             ), 503
 
+        store_analysis(message, result, "web")
         return render_template("result.html", message=message, result=result,
                                view=describe_result(result),
                                model_name=predictor.model_name,
@@ -197,6 +222,7 @@ def register_routes(app):
         except ModelNotAvailableError:
             return jsonify({"error": "The model is not available. Train it with python train_model.py."}), 503
 
+        store_analysis(message, result, "api")
         return jsonify({
             "prediction": result["prediction"],
             "confidence": round(result["confidence"], 4),
@@ -228,6 +254,15 @@ def register_error_handlers(app):
             render_template("error.html", status=status, title=title, message=message),
             status,
         )
+
+    @app.errorhandler(db.DatabaseError)
+    def database_error(error):
+        return error_response(503, "Database unavailable",
+                              "The database could not be reached. Please try again later.")
+
+    @app.errorhandler(401)
+    def unauthorized(error):
+        return error_response(401, "Login required", "Please log in to continue.")
 
     @app.errorhandler(CSRFError)
     def csrf_error(error):
@@ -288,7 +323,34 @@ def register_security_headers(app):
             "frame-ancestors 'none'; "
             "form-action 'self'"
         )
+        # Admin pages contain stored messages: do not let browsers cache them.
+        if request.endpoint and request.endpoint.startswith("admin."):
+            response.headers["Cache-Control"] = "no-store"
         return response
+
+
+# ----------------------------------------------------------------------
+# Template helpers
+# ----------------------------------------------------------------------
+def register_template_filters(app):
+
+    @app.template_filter("datetime_utc")
+    def datetime_utc(value):
+        """'2026-09-28T14:03:00+00:00' -> '2026-09-28 14:03 UTC'."""
+        try:
+            return datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M UTC")
+        except (TypeError, ValueError):
+            return value or "-"
+
+    app.add_template_filter(format_confidence, "confidence")
+
+    @app.template_filter("percent")
+    def percent(value, decimals=1):
+        """0.9723 -> '97.2%'."""
+        try:
+            return f"{float(value) * 100:.{decimals}f}%"
+        except (TypeError, ValueError):
+            return "-"
 
 
 if __name__ == "__main__":

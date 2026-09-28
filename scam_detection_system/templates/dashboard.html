@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Scam Detection System{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-baseline mb-3 gap-2">
+    <h1 class="h3 mb-0">Admin dashboard</h1>
+    <span class="small text-muted">Signed in as {{ current_admin.username }}</span>
+</div>
+
+<!-- Usage statistics -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100"><div class="card-body">
+            <p class="stat-label">Messages analysed</p>
+            <p class="stat-value">{{ stats.total }}</p>
+            <p class="small text-muted mb-0">{{ stats.api }} via API</p>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100"><div class="card-body">
+            <p class="stat-label">Legitimate</p>
+            <p class="stat-value text-legitimate">{{ stats.legitimate }}</p>
+            <p class="small text-muted mb-0">{{ "%.1f"|format(stats.legitimate_percent) }}% of total</p>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100"><div class="card-body">
+            <p class="stat-label">Potential scams</p>
+            <p class="stat-value text-scam">{{ stats.scam }}</p>
+            <p class="small text-muted mb-0">{{ "%.1f"|format(stats.scam_percent) }}% of total</p>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card h-100"><div class="card-body">
+            <p class="stat-label">Average confidence</p>
+            <p class="stat-value">{{ stats.avg_confidence|confidence if stats.avg_confidence is not none else "-" }}</p>
+            <p class="small text-muted mb-0">of all predictions</p>
+        </div></div>
+    </div>
+</div>
+
+<!-- Recent analyses -->
+<section class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-baseline mb-2">
+            <h2 class="h5 mb-0">Recent analyses</h2>
+            <a href="{{ url_for('admin.history') }}" class="small">View full history</a>
+        </div>
+        {% if recent %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr>
+                    <th scope="col">Time</th><th scope="col">Message</th>
+                    <th scope="col">Prediction</th><th scope="col" class="text-end">Confidence</th>
+                </tr></thead>
+                <tbody>
+                {% for item in recent %}
+                <tr>
+                    <td class="text-nowrap small">{{ item.analyzed_at|datetime_utc }}</td>
+                    <td class="message-cell">{{ item.message|truncate(90, True) }}</td>
+                    <td>{% include "_prediction_badge.html" %}</td>
+                    <td class="text-end text-nowrap">{{ item.confidence|confidence }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No messages have been analysed yet.</p>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Model performance (from models/evaluation_results.json) -->
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Model performance</h2>
+        {% if evaluation %}
+        {% set m = evaluation.selected_model_test_metrics %}
+        {% set cm = m.confusion_matrix %}
+        <p class="small text-muted">
+            Selected model: <strong>{{ evaluation.selected_model }}</strong> &middot;
+            trained {{ evaluation.created_at|datetime_utc }} on
+            {{ evaluation.eda.total_messages }} messages
+            ({{ evaluation.split.test_size_rows }} held out for testing).
+            Precision, recall and F1 refer to the scam class.
+        </p>
+
+        <div class="row g-3 mb-3">
+            {% for label, key in [("Accuracy", "accuracy"), ("Precision", "precision"),
+                                  ("Recall", "recall"), ("F1-score", "f1")] %}
+            <div class="col-6 col-md-3">
+                <div class="metric-box">
+                    <span class="stat-label">{{ label }}</span>
+                    <span class="metric-value">{{ m[key]|percent }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <h3 class="h6">Confusion matrix (test set)</h3>
+                <table class="table table-bordered table-sm text-center confusion-table">
+                    <thead><tr><th></th><th scope="col">Predicted legitimate</th><th scope="col">Predicted scam</th></tr></thead>
+                    <tbody>
+                        <tr><th scope="row">Actual legitimate</th>
+                            <td class="cm-correct">{{ cm.tn }}</td><td class="cm-wrong">{{ cm.fp }}</td></tr>
+                        <tr><th scope="row">Actual scam</th>
+                            <td class="cm-wrong">{{ cm.fn }}</td><td class="cm-correct">{{ cm.tp }}</td></tr>
+                    </tbody>
+                </table>
+                <p class="small text-muted mb-0">
+                    {{ cm.fn }} scam(s) missed (false negatives), {{ cm.fp }} legitimate message(s)
+                    wrongly flagged (false positives).
+                </p>
+            </div>
+            <div class="col-lg-7">
+                <h3 class="h6">Model comparison (test set)</h3>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead><tr>
+                            <th scope="col">Model</th><th scope="col" class="text-end">Accuracy</th>
+                            <th scope="col" class="text-end">Precision</th><th scope="col" class="text-end">Recall</th>
+                            <th scope="col" class="text-end">F1</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for name, r in evaluation.models.items() %}
+                        <tr {% if name == evaluation.selected_model %}class="fw-semibold"{% endif %}>
+                            <td>{{ name }}{% if name == evaluation.selected_model %} (selected){% endif %}</td>
+                            <td class="text-end">{{ r.test.accuracy|percent }}</td>
+                            <td class="text-end">{{ r.test.precision|percent }}</td>
+                            <td class="text-end">{{ r.test.recall|percent }}</td>
+                            <td class="text-end">{{ r.test.f1|percent }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mb-0">{{ evaluation.selection_reason }}</p>
+            </div>
+        </div>
+        {% elif model_error %}
+        <p class="text-muted mb-0">{{ model_error }}</p>
+        {% else %}
+        <p class="text-muted mb-0">No evaluation results found. Run <code>python train_model.py</code>.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
