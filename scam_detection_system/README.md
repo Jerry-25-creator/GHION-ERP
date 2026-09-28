@@ -12,7 +12,7 @@ evaluated on a real labelled dataset.
 
 ## Development status
 
-The project is built in phases. Sections marked *(Phase N)* are completed in that phase.
+The project was built in five phases; all are complete.
 
 | Phase | Content | Status |
 |-------|---------|--------|
@@ -20,7 +20,7 @@ The project is built in phases. Sections marked *(Phase N)* are completed in tha
 | 2 | Dataset preparation, `train_model.py`, TF-IDF, model training and evaluation | Done |
 | 3 | Model integrated with Flask, `POST /api/predict`, analysis results | Done |
 | 4 | SQLite database, analysis history, admin dashboard | Done |
-| 5 | Full test suite, security hardening, UI polish, final documentation | Pending |
+| 5 | Full test suite, security hardening, UI polish, final documentation | Done |
 
 ---
 
@@ -34,7 +34,9 @@ based on patterns learned from real labelled messages.
 ## 2. Features
 
 - Landing page that explains the system and its limits
-- Analysis page with a large text area, character counter, Analyze and Clear buttons
+- Analysis page with a large text area, character counter, Analyze and Clear buttons,
+  and "Try an example" buttons for demonstrations
+- "How it works" page explaining the method, model performance and limitations
 - ML prediction (Legitimate / Potential Scam) with a confidence estimate
 - Warning indicators, shown **separately** from the ML prediction
 - REST API: `GET /api/health`, `POST /api/predict`
@@ -42,7 +44,9 @@ based on patterns learned from real labelled messages.
 - Admin login (hashed passwords) with dashboard: statistics, recent analyses, model performance
 - History page with filter, paging and delete
 - Friendly error pages; no stack traces shown to users
-- Security: CSRF protection, input limits, security headers, secrets in `.env`
+- Security: CSRF protection, input limits, rate limiting, login lockout, strict security
+  headers, secrets in `.env` (see section 13)
+- Works fully offline: Bootstrap is stored in the project, nothing is loaded from other sites
 
 ## 3. Technology stack
 
@@ -84,6 +88,7 @@ scam_detection_system/
 ├── admin.py             Admin login, dashboard and history pages (Blueprint)
 ├── db.py                All database access (SQLite, parameterised queries)
 ├── create_admin.py      Creates an admin account (asks for a password)
+├── security.py          Rate limiting (login lockout, analyses per minute)
 ├── config.py            Settings read from environment variables / .env
 ├── train_model.py       ML training and evaluation pipeline
 ├── prepare_dataset.py   Converts a downloaded dataset to data/scam_dataset.csv
@@ -105,9 +110,16 @@ scam_detection_system/
 │   ├── schema.sql       SQLite tables (created automatically)
 │   ├── schema_mysql.sql Same tables for a future MySQL migration
 │   └── database.db      The database file (generated, not in Git)
-├── templates/           base, index, analyze, result, error, login, dashboard, history
-├── static/css, js, images
-└── tests/               Automated tests
+├── templates/           base, index, analyze, result, about, error, login, dashboard, history
+├── static/
+│   ├── css/style.css    Custom styles
+│   ├── js/script.js     Counter, Clear, examples, input checks
+│   ├── images/          favicon.svg
+│   └── vendor/          Bootstrap 5.3.3 (MIT licence), stored locally
+├── logs/                app.log - errors and security events (generated, not in Git)
+├── docs/
+│   └── viva_guide.md    Key concepts and likely questions, in plain language
+└── tests/               Automated tests (see section 12)
 ```
 
 ## 5. Machine learning methodology
@@ -495,6 +507,39 @@ All SQL is in `db.py`, so no other file needs to change.
 pytest -v
 ```
 
+Expected result: **106 passed, 5 xfailed**. Tests that need the trained model are
+skipped automatically if `python train_model.py` has not been run yet. Every test uses a
+temporary database and temporary folders, so the real database and model are never changed.
+
+| File | What it tests |
+|------|---------------|
+| `tests/test_model.py` | Dataset loading (standard, Kaggle and UCI formats), cleaning (missing values, unknown labels, duplicates), friendly dataset errors, label standardisation, text preprocessing, warning indicators, trained-model predictions |
+| `tests/test_training.py` | Train/test split has **no overlap** and keeps the class ratio, model-selection rule, the full training pipeline end-to-end (on a small artificial dataset, written to a temporary folder), dataset/argument errors |
+| `tests/test_api.py` | Pages, `GET /api/health`, `POST /api/predict` (scam, legitimate, empty, whitespace, non-text, missing key, wrong JSON type, too long, not JSON, malformed JSON, GET not allowed, missing model), the analyze form, HTML escaping, CSRF |
+| `tests/test_database.py` | Tables created, storing and reading analyses, statistics, redaction of phone numbers/e-mails, SQL-injection text stored harmlessly, paging/filtering, predictions saved, prediction still works if the database fails, password hashing and rules, login/logout, admin pages require login, dashboard, history, delete |
+| `tests/test_security.py` | Rate limiter, login lockout, analysis rate limit, security headers, HSTS over HTTPS, request size limit, no external resources, 500 errors without stack traces, site still works with an unusable database |
+| `tests/test_examples.py` | The trained model against labelled example messages (`tests/example_messages.py`) |
+
+### Example test messages
+
+`tests/example_messages.py` contains 18 example messages written for testing (never used
+for training), including mobile-money style scams. The current model classifies all 18
+correctly.
+
+It also contains **5 known difficult messages** that the model gets wrong. They are marked
+as expected failures (`xfail`) and are kept on purpose as evidence of the model's limits:
+
+| Message (shortened) | Truth | Scam probability | Why it is difficult |
+|---------------------|-------|-----------------:|---------------------|
+| "Hi, this is your manager... buy three gift cards... send me the codes" | Scam | 3% | No links, numbers or prize words |
+| "I am a soldier on a peace mission... move some funds. You will get 30 percent" | Scam | 17% | Advance-fee scam style is rare in the dataset |
+| "Hello mum, I lost my phone, this is my new number. Please send me 200,000" | Scam | 9% | Impersonation scam; sounds personal |
+| "Your MTN MoMo transaction of UGX 20,000 to John was successful..." | Legitimate | 88% | Genuine transaction alerts contain amounts, like spam |
+| "Dear customer, your electricity token is 1234-5678" | Legitimate | 94% | The digits look like a phone number |
+
+This shows why the result is presented as "Potential Scam" rather than a verdict, and why
+local, up-to-date training data is the most important future improvement.
+
 ## 13. Security measures
 
 - Secret key and settings come from environment variables (`.env`), never from source code
@@ -509,6 +554,16 @@ pytest -v
 - Model files are loaded only from the local `models/` folder (pickle files can run
   code, so never load `.pkl` files from untrusted sources)
 - Friendly error pages; stack traces are only written to the server log
+- **Rate limiting** (`security.py`): after 5 failed logins from one IP address, logins are
+  blocked for 15 minutes (even with the correct password); at most 30 analyses per IP per
+  minute. Both are configurable in `.env` and return HTTP 429 with a friendly message.
+- **Strict Content-Security-Policy**: scripts, styles and images only from this site, no
+  inline scripts, no plugins; plus `Permissions-Policy`, `Cross-Origin-Opener-Policy`,
+  and `Strict-Transport-Security` when served over HTTPS
+- Bootstrap is served locally, so no third-party website is contacted
+- `FLASK_DEBUG` defaults to 0, and the app refuses to start in debug mode on a
+  network-visible address (the Werkzeug debugger can run code)
+- Errors and security events are logged to `logs/app.log`; message text is never logged
 - Parameterised SQL queries only (`?` placeholders) - no SQL injection
 - Admin passwords stored as salted scrypt hashes; no default or hard-coded passwords
 - Admin sessions expire; session cleared at login; logout/delete require POST + CSRF
@@ -526,6 +581,14 @@ pytest -v
   other countries, languages or time periods.
 - A legitimate message can be incorrectly flagged as a scam (false positive).
 - A scam message can be incorrectly classified as legitimate (false negative).
+- The model misses scams that contain no links, numbers or prize words (e.g. gift-card,
+  impersonation and advance-fee scams) and can flag genuine transaction alerts - see the
+  known difficult messages in section 12.
+- Only English is supported; messages in other languages (e.g. Luganda, Swahili) are
+  mostly classified as legitimate because the model does not know their words.
+- The warning indicators are simple English pattern checks and can miss or over-report signs.
+- Rate-limit counters are kept in memory: they reset when the server restarts and are not
+  shared between several server processes. SQLite suits a single server with modest traffic.
 - The system must not be treated as a guarantee of safety.
 
 ## 15. Future improvements
@@ -539,3 +602,8 @@ The code is organised so these can be added later without a rewrite:
 - Multilingual detection (e.g. Luganda, Swahili)
 - Transformer models such as BERT
 - Migration from SQLite to MySQL
+- Collect and label local scam messages (with consent and anonymisation) and retrain
+- Let users report wrong predictions, and use reviewed reports to retrain the model
+- Periodic retraining and monitoring for "concept drift" as scam styles change
+- Adjustable decision threshold (e.g. favour recall even more for high-risk users)
+- Shared rate limiting (e.g. Redis) and a production WSGI server (e.g. waitress on Windows)

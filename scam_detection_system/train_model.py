@@ -19,6 +19,7 @@ Pipeline:
 Usage:
     python train_model.py
     python train_model.py --data path\\to\\file.csv --test-size 0.2 --seed 42
+    python train_model.py --output-dir some\\folder   (save somewhere other than models/)
 """
 
 import argparse
@@ -54,8 +55,16 @@ F1_TIE_MARGIN = 0.01
 # Probability above which a message is classified as a scam.
 DECISION_THRESHOLD = 0.5
 
-EVALUATION_JSON = os.path.join(Config.MODEL_DIR, "evaluation_results.json")
-COMPARISON_CSV = os.path.join(Config.MODEL_DIR, "model_comparison.csv")
+
+
+def output_paths(output_dir):
+    """Where the four output files are written (models/ by default)."""
+    return {
+        "model": os.path.join(output_dir, os.path.basename(Config.MODEL_PATH)),
+        "vectorizer": os.path.join(output_dir, os.path.basename(Config.VECTORIZER_PATH)),
+        "evaluation": os.path.join(output_dir, "evaluation_results.json"),
+        "comparison": os.path.join(output_dir, "model_comparison.csv"),
+    }
 
 
 def heading(title):
@@ -210,7 +219,7 @@ def evaluate(pipeline, X_test, y_test):
 
 
 def print_confusion_matrix(cm):
-    print(f"                        Predicted legit   Predicted scam")
+    print("                        Predicted legit   Predicted scam")
     print(f"    Actual legitimate   {cm['tn']:>15}   {cm['fp']:>14}")
     print(f"    Actual scam         {cm['fn']:>15}   {cm['tp']:>14}")
     print(f"    -> {cm['fp']} false positive(s) (legitimate flagged as scam)")
@@ -290,17 +299,18 @@ def show_examples(title, messages, limit=5):
 # ----------------------------------------------------------------------
 # Step 9: Save
 # ----------------------------------------------------------------------
-def save_outputs(pipeline, evaluation):
-    os.makedirs(Config.MODEL_DIR, exist_ok=True)
+def save_outputs(pipeline, evaluation, output_dir):
+    paths = output_paths(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
     # Saved separately, as required: the vectorizer turns text into numbers,
     # the model turns numbers into a prediction.
-    joblib.dump(pipeline.named_steps["tfidf"], Config.VECTORIZER_PATH)
-    joblib.dump(pipeline.named_steps["clf"], Config.MODEL_PATH)
+    joblib.dump(pipeline.named_steps["tfidf"], paths["vectorizer"])
+    joblib.dump(pipeline.named_steps["clf"], paths["model"])
 
-    with open(EVALUATION_JSON, "w", encoding="utf-8") as f:
+    with open(paths["evaluation"], "w", encoding="utf-8") as f:
         json.dump(evaluation, f, indent=2)
 
-    with open(COMPARISON_CSV, "w", newline="", encoding="utf-8") as f:
+    with open(paths["comparison"], "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["model", "accuracy", "precision", "recall", "f1",
                          "cv_f1", "cv_recall", "tn", "fp", "fn", "tp", "selected"])
@@ -310,14 +320,29 @@ def save_outputs(pipeline, evaluation):
                              round(r["cv"]["cv_f1"], 4), round(r["cv"]["cv_recall"], 4),
                              cm["tn"], cm["fp"], cm["fn"], cm["tp"],
                              name == evaluation["selected_model"]])
+    return paths
 
 
-def main():
+def split_dataset(df, test_size, seed):
+    """
+    Split into training and test sets. stratify keeps the same scam /
+    legitimate ratio in both sets. Duplicates were already removed, so no
+    message can appear in both sets.
+    """
+    return train_test_split(df["message"], df["label"], test_size=test_size,
+                            stratify=df["label"], random_state=seed)
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Train and evaluate the scam detection model.")
     parser.add_argument("--data", default=Config.DATA_PATH, help="Path to the labelled dataset")
     parser.add_argument("--test-size", type=float, default=0.2, help="Share of data kept for testing")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible results")
-    args = parser.parse_args()
+    parser.add_argument("--output-dir", default=Config.MODEL_DIR,
+                        help="Folder for the model and results (default: models/)")
+    args = parser.parse_args(argv)
+    if not 0.05 <= args.test_size <= 0.5:
+        parser.error("--test-size must be between 0.05 and 0.5")
 
     # Avoid crashes when a message contains characters the console cannot show.
     if hasattr(sys.stdout, "reconfigure"):
@@ -335,11 +360,7 @@ def main():
     eda = explore_data(df)
 
     heading("STEP 4: Train/test split")
-    # stratify=y keeps the same scam/legitimate ratio in both sets.
-    X_train, X_test, y_train, y_test = train_test_split(
-        df["message"], df["label"], test_size=args.test_size,
-        stratify=df["label"], random_state=args.seed,
-    )
+    X_train, X_test, y_train, y_test = split_dataset(df, args.test_size, args.seed)
     print(f"  Training set: {len(X_train)} messages ({int(y_train.sum())} scams)")
     print(f"  Test set    : {len(X_test)} messages ({int(y_test.sum())} scams)")
     print("  The test set is set aside and used only for the final evaluation.")
@@ -407,10 +428,11 @@ def main():
         "models": results,
         "library_versions": {"scikit-learn": sklearn.__version__, "numpy": np.__version__},
     }
-    save_outputs(best, evaluation)
-    for path in (Config.MODEL_PATH, Config.VECTORIZER_PATH, EVALUATION_JSON, COMPARISON_CSV):
-        print(f"  Saved: {os.path.relpath(path)}")
+    paths = save_outputs(best, evaluation, args.output_dir)
+    for path in paths.values():
+        print(f"  Saved: {path}")
     print("\nTraining complete.")
+    return evaluation
 
 
 if __name__ == "__main__":

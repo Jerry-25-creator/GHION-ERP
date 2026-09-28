@@ -58,6 +58,15 @@ class Config:
     # Admins are logged out automatically after this many minutes.
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=_get_int("ADMIN_SESSION_MINUTES", 60))
 
+    # --- Rate limiting (see security.py) ---------------------------------
+    LOGIN_MAX_ATTEMPTS = _get_int("LOGIN_MAX_ATTEMPTS", 5)
+    LOGIN_LOCKOUT_MINUTES = _get_int("LOGIN_LOCKOUT_MINUTES", 15)
+    ANALYSIS_RATE_LIMIT_PER_MINUTE = _get_int("ANALYSIS_RATE_LIMIT_PER_MINUTE", 30)
+
+    # --- Logging --------------------------------------------------------
+    # Errors and security events are written here (message text is never logged).
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
+
     # --- Privacy ------------------------------------------------------
     # Replace phone numbers and e-mail addresses with placeholders in the
     # stored copy of each message (the prediction uses the original text).
@@ -68,5 +77,6 @@ class TestConfig(Config):
     """Configuration used by the automated tests."""
 
     TESTING = True
+    DEBUG = False
     SECRET_KEY = "test-only-secret-key"
     WTF_CSRF_ENABLED = False

@@ -6,8 +6,9 @@
     <div class="col-lg-8">
         <h1 class="h3 mb-2">Analyze a Message</h1>
         <p class="text-muted mb-4">
-            Paste or type the message below. Do not include passwords, PINs or other private
-            details you do not want stored.
+            Paste or type the message below. Messages are stored to help monitor the system
+            (phone numbers and e-mail addresses are removed first), so do not include passwords,
+            PINs or other private details.
         </p>
 
         {% if error %}
@@ -38,6 +39,26 @@
                 <button type="button" id="clear-btn" class="btn btn-outline-secondary">Clear</button>
             </div>
         </form>
+
+        <!-- Example messages for demonstrations (filled in by script.js).
+             These are illustrative examples written for this demo, not training data. -->
+        <div class="mt-4">
+            <p class="small fw-semibold mb-2">Try an example:</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary example-btn"
+                        data-example="Congratulations! You have won 5,000,000 UGX. Click this link immediately to claim your prize.">
+                    Prize message</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary example-btn"
+                        data-example="URGENT: Your account has been suspended. Verify your details at http://secure-login-update.xyz within 24 hours or it will be closed.">
+                    Account warning</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary example-btn"
+                        data-example="Hi, are we still meeting for lunch tomorrow at 1pm? Let me know if you are running late.">
+                    Lunch plans</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary example-btn"
+                        data-example="Reminder: your dentist appointment is on Monday at 10am. Please arrive 10 minutes early.">
+                    Appointment reminder</button>
+            </div>
+        </div>
 
         <p class="small text-muted mt-4 mb-0">
             Links in your message are treated as plain text. They are never opened or visited.

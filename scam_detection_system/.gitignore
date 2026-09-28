@@ -15,6 +15,7 @@ models/*.pkl
 models/*.json
 models/*.csv
 database/*.db
+logs/
 
 # Editor / OS
 .vscode/

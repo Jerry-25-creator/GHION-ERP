@@ -36,6 +36,16 @@ document.addEventListener("DOMContentLoaded", function () {
         textarea.focus();
     });
 
+    // "Try an example" buttons copy their example text into the text box.
+    document.querySelectorAll(".example-btn").forEach(function (button) {
+        button.addEventListener("click", function () {
+            textarea.value = button.dataset.example;
+            feedback.textContent = "";
+            updateCounter();
+            textarea.focus();
+        });
+    });
+
     form.addEventListener("submit", function (event) {
         const message = textarea.value.trim();
 

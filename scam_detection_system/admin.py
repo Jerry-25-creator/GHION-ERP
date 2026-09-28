@@ -13,6 +13,8 @@ Authentication (kept simple for the first version):
     * After login, only the admin's id is stored in Flask's signed session
       cookie. The session expires after ADMIN_SESSION_MINUTES.
     * All POST forms carry a CSRF token (Flask-WTF CSRFProtect).
+    * Too many failed logins from one IP address cause a temporary lockout
+      (see security.py).
 """
 
 from functools import wraps
@@ -70,6 +72,17 @@ def login():
     except db.DatabaseError:
         error = "The database is not available. Please try again later."
 
+    limiter = current_app.extensions["login_limiter"]
+    client = request.remote_addr or "unknown"
+
+    if request.method == "POST" and error is None and limiter.is_limited(client):
+        minutes = -(-limiter.retry_after(client) // 60)      # round up
+        current_app.logger.warning("Login blocked: too many failed attempts from one client")
+        return render_template(
+            "login.html", no_admin_yet=no_admin_yet,
+            error=f"Too many failed login attempts. Please try again in {minutes} minute(s).",
+        ), 429
+
     if request.method == "POST" and error is None:
         username = request.form.get("username", "").strip()[:50]
         password = request.form.get("password", "")[:200]
@@ -78,8 +91,10 @@ def login():
             # Same message for a wrong username or wrong password, so the page
             # does not reveal which usernames exist.
             error = "Incorrect username or password."
+            limiter.record(client)
             current_app.logger.warning("Failed admin login attempt")
         else:
+            limiter.reset(client)
             session.clear()                   # new session -> prevents session fixation
             session["admin_id"] = user["id"]
             session.permanent = True          # expires after PERMANENT_SESSION_LIFETIME

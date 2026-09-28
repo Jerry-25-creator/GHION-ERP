@@ -2,6 +2,7 @@
 app.py - Flask web application for the Scam Detection System.
 
 Pages:   /            home page
+         /about       how it works, model performance, limitations
          /analyze     form to analyse a message (GET shows the form, POST shows the result)
 API:     /api/health  GET  - is the server running?
          /api/predict POST - analyse a message sent as JSON
@@ -16,18 +17,21 @@ told to train the model first.
 Run with:  python app.py
 """
 
+import logging
 import os
 import secrets
 import warnings
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
-from flask import Flask, current_app, jsonify, render_template, request
+from flask import Flask, abort, current_app, jsonify, render_template, request
 from flask_wtf.csrf import CSRFError, CSRFProtect
 
 import admin
 import db
 from config import Config
 from scam_detector.predictor import SCAM, ModelNotAvailableError, ScamPredictor
+from security import RateLimiter
 
 DISCLAIMER = ("This is an automated assessment by a machine learning model, not a "
               "guarantee. Always verify suspicious messages independently.")
@@ -45,8 +49,13 @@ def create_app(config_class=Config):
     """
     app = Flask(__name__)
     app.config.from_object(config_class)
+    configure_logging(app)
     ensure_secret_key(app)
     csrf.init_app(app)
+    app.extensions["login_limiter"] = RateLimiter(
+        app.config["LOGIN_MAX_ATTEMPTS"], app.config["LOGIN_LOCKOUT_MINUTES"] * 60)
+    app.extensions["analysis_limiter"] = RateLimiter(
+        app.config["ANALYSIS_RATE_LIMIT_PER_MINUTE"], 60)
     load_predictor(app)
     db.init_app(app)
 
@@ -56,6 +65,25 @@ def create_app(config_class=Config):
     register_security_headers(app)
     register_template_filters(app)
     return app
+
+
+def configure_logging(app):
+    """
+    Write warnings and errors to logs/app.log (max 1 MB, 3 old files kept).
+    Message text is never logged, only events such as failed logins or errors.
+    """
+    app.logger.setLevel(logging.INFO)
+    if app.testing:
+        return
+    try:
+        os.makedirs(app.config["LOG_DIR"], exist_ok=True)
+        handler = RotatingFileHandler(os.path.join(app.config["LOG_DIR"], "app.log"),
+                                      maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        app.logger.addHandler(handler)
+    except OSError:
+        app.logger.warning("Could not create the log file; logging to the console only")
 
 
 def ensure_secret_key(app):
@@ -146,6 +174,15 @@ def describe_result(result):
             "certainty": certainty, "confidence_width": round(confidence * 100)}
 
 
+def analysis_rate_limited():
+    """True if this IP address has used up its analyses for the current minute."""
+    limiter = current_app.extensions["analysis_limiter"]
+    if limiter.hit(request.remote_addr or "unknown"):
+        return False
+    current_app.logger.warning("Analysis rate limit reached for a client")
+    return True
+
+
 def store_analysis(message, result, source):
     """
     Save an analysis to the history table. A database problem must not stop
@@ -168,6 +205,13 @@ def register_routes(app):
         """Landing page."""
         return render_template("index.html")
 
+    @app.route("/about")
+    def about():
+        """How the system works, model performance and limitations."""
+        predictor = current_app.extensions.get("predictor")
+        return render_template("about.html",
+                               evaluation=predictor.evaluation if predictor else {})
+
     @app.route("/analyze", methods=["GET", "POST"])
     def analyze():
         """GET: show the form. POST: analyse the submitted message (CSRF-protected)."""
@@ -175,6 +219,8 @@ def register_routes(app):
         if request.method == "GET":
             return render_template("analyze.html", max_length=max_length)
 
+        if analysis_rate_limited():
+            abort(429)
         submitted = request.form.get("message", "")
         message, error = validate_message(submitted, max_length)
         if error:
@@ -208,6 +254,8 @@ def register_routes(app):
         attacker could not do directly. Requiring a JSON content type also
         stops ordinary HTML forms on other websites from posting to it.
         """
+        if analysis_rate_limited():
+            abort(429)
         if not request.is_json:
             return jsonify({"error": 'Send JSON with the header "Content-Type: application/json".'}), 415
         data = request.get_json(silent=True)
@@ -289,6 +337,11 @@ def register_error_handlers(app):
         return error_response(415, "Unsupported format",
                               "The data was sent in an unsupported format.")
 
+    @app.errorhandler(429)
+    def too_many_requests(error):
+        return error_response(429, "Too many requests",
+                              "You have sent too many requests. Please wait a minute and try again.")
+
     @app.errorhandler(413)
     def too_large(error):
         return error_response(413, "Request too large",
@@ -314,15 +367,23 @@ def register_security_headers(app):
         # Do not allow the site to be embedded in other sites (clickjacking).
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        # Only load scripts/styles from this site and the Bootstrap CDN.
+        # Content Security Policy: the browser may only load scripts, styles and
+        # images from this site. Inline scripts are blocked, which stops most
+        # cross-site scripting (XSS) attacks even if escaping were ever missed.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdn.jsdelivr.net; "
-            "style-src 'self' https://cdn.jsdelivr.net; "
             "img-src 'self' data:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
             "frame-ancestors 'none'; "
             "form-action 'self'"
         )
+        # The site needs no camera, microphone, location, etc.
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        # Over HTTPS, tell browsers to always use HTTPS for this site.
+        if request.is_secure:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         # Admin pages contain stored messages: do not let browsers cache them.
         if request.endpoint and request.endpoint.startswith("admin."):
             response.headers["Cache-Control"] = "no-store"
@@ -355,4 +416,7 @@ def register_template_filters(app):
 
 if __name__ == "__main__":
     app = create_app()
+    if app.config["DEBUG"] and app.config["HOST"] not in ("127.0.0.1", "localhost"):
+        # The Werkzeug debugger can run code, so never expose it to a network.
+        raise SystemExit("Refusing to start: FLASK_DEBUG=1 is only allowed with FLASK_HOST=127.0.0.1")
     app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])
