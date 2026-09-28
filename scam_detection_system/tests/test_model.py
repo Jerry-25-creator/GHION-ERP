@@ -15,6 +15,7 @@ import pytest
 
 from config import Config
 from scam_detector.dataset import DatasetError, load_dataset, standardise_labels
+from scam_detector.indicators import find_indicators
 from scam_detector.preprocessing import clean_text
 
 import pandas as pd
@@ -129,6 +130,39 @@ def test_clean_text_keeps_exclamation_and_removes_other_punctuation():
     result = clean_text("Congratulations!!! You're a winner.")
     assert result.count("exclamationmark") == 3
     assert "'" not in result and "." not in result
+
+
+# ----------------------------------------------------------------------
+# Warning indicators (separate from the ML model)
+# ----------------------------------------------------------------------
+def indicator_names(message):
+    return [ind["name"] for ind in find_indicators(message)]
+
+
+def test_indicators_for_typical_scam():
+    names = indicator_names("Congratulations! You have won 5,000,000 UGX. "
+                            "Click this link immediately to claim your prize.")
+    assert "Prize or reward claim" in names
+    assert "Urgent language" in names
+    assert "Suspicious call to action" in names
+    assert "Suspicious financial language" in names
+
+
+def test_indicators_for_sensitive_information_and_account_threat():
+    names = indicator_names("Your account has been blocked. Send your PIN to unlock it.")
+    assert "Requests sensitive information" in names
+    assert "Account threat or problem" in names
+
+
+def test_indicators_link_and_formatting():
+    names = indicator_names("FREE ENTRY NOW WINNER!!! go to www.example.com")
+    assert "Contains a link" in names
+    assert "Attention-grabbing formatting" in names
+
+
+def test_no_indicators_for_ordinary_message():
+    assert find_indicators("See you at lunch tomorrow, I will visit grandma after.") == []
+    assert find_indicators("") == []
 
 
 # ----------------------------------------------------------------------

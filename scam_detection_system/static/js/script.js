@@ -1,5 +1,8 @@
 /* ------------------------------------------------------------
    Scam Detection System - front-end behaviour
+   The form works without JavaScript; this script only adds a
+   character counter, a Clear button and quick input checks.
+   The server always validates the message again.
    ------------------------------------------------------------ */
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -12,7 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const charCount = document.getElementById("char-count");
     const feedback = document.getElementById("form-feedback");
     const clearBtn = document.getElementById("clear-btn");
-    const resultBox = document.getElementById("result");
+    const analyzeBtn = document.getElementById("analyze-btn");
     const maxLength = parseInt(textarea.dataset.maxLength, 10);
 
     // Update the "0 / 5000 characters" counter as the user types.
@@ -25,45 +28,41 @@ document.addEventListener("DOMContentLoaded", function () {
         feedback.textContent = "";
     });
 
-    // Clear button: empty the text box and any previous result.
+    // Clear button: empty the text box.
     clearBtn.addEventListener("click", function () {
         textarea.value = "";
         feedback.textContent = "";
-        resultBox.replaceChildren();
         updateCounter();
         textarea.focus();
     });
 
     form.addEventListener("submit", function (event) {
-        event.preventDefault();
         const message = textarea.value.trim();
 
-        // Client-side validation (the server validates again in Phase 3).
+        // Quick checks in the browser, so the user gets instant feedback.
         if (message.length === 0) {
+            event.preventDefault();
             feedback.textContent = "Please enter a message to analyze.";
             return;
         }
         if (message.length > maxLength) {
+            event.preventDefault();
             feedback.textContent = "The message is too long (maximum " + maxLength + " characters).";
             return;
         }
 
-        // Phase 1: the ML model is not connected yet.
-        // In Phase 3 this will send the message to POST /api/predict.
-        showInfo("The analysis engine will be connected in Phase 3, after the model has been trained.");
+        // Prevent double submission while the server is working.
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = "Analyzing...";
     });
 
-    // Build the message with textContent (never innerHTML) so user text
-    // cannot inject HTML or scripts into the page.
-    function showInfo(text) {
-        const card = document.createElement("div");
-        card.className = "result-card result-info";
-        const p = document.createElement("p");
-        p.className = "mb-0";
-        p.textContent = text;
-        card.appendChild(p);
-        resultBox.replaceChildren(card);
-    }
+    // Keep the counter correct when the page is re-shown with a message
+    // (e.g. after a validation error or using the browser's Back button).
+    window.addEventListener("pageshow", function () {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = "Analyze Message";
+        updateCounter();
+    });
 
     updateCounter();
 });

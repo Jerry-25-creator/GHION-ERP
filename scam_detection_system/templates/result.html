@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ view.title }} - Scam Detection System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <h1 class="h3 mb-4">Analysis Result</h1>
+
+        <!-- 1. Machine learning prediction -->
+        <section class="result-card {{ view.css }} mb-4" aria-labelledby="ml-heading">
+            <p class="section-label mb-1" id="ml-heading">Machine learning prediction</p>
+            <h2 class="h4 mb-2">{{ view.title }}</h2>
+            <p class="mb-3">{{ view.summary }}</p>
+
+            <div class="d-flex justify-content-between small mb-1">
+                <span>Model confidence: <strong>{{ view.percent }}</strong></span>
+                <span>{{ view.certainty }} certainty</span>
+            </div>
+            <!-- Native <progress> element: no inline styles needed (allowed by our CSP) -->
+            <progress class="confidence-bar" max="100" value="{{ view.confidence_width }}"
+                      aria-label="Model confidence">{{ view.percent }}</progress>
+            {% if view.certainty == "Low" %}
+            <p class="small mt-2 mb-0">
+                The model is unsure about this message. Treat the result with extra caution.
+            </p>
+            {% endif %}
+            <p class="small text-muted mt-2 mb-0">
+                Confidence is the model's estimated probability for this prediction, based on
+                patterns learned from labelled example messages.
+            </p>
+        </section>
+
+        <!-- 2. Warning indicators (rule-based, separate from the ML model) -->
+        <section class="card mb-4" aria-labelledby="ind-heading">
+            <div class="card-body">
+                <p class="section-label mb-1" id="ind-heading">Detected warning indicators</p>
+                <p class="small text-muted">
+                    Simple pattern checks that highlight common scam tactics. They are shown to
+                    help explain the message and do not change the model's prediction.
+                </p>
+                {% if result.indicators %}
+                <ul class="list-unstyled mb-0 indicator-list">
+                    {% for ind in result.indicators %}
+                    <li class="mb-2">
+                        <strong>{{ ind.name }}</strong><br>
+                        <span class="small text-muted">{{ ind.explanation }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="mb-0">No common warning signs were found by the pattern checks.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- 3. The analysed message (auto-escaped by Jinja2; links are NOT clickable) -->
+        <section class="card mb-4" aria-labelledby="msg-heading">
+            <div class="card-body">
+                <p class="section-label mb-2" id="msg-heading">Analysed message</p>
+                <div class="analysed-message">{{ message }}</div>
+                <p class="small text-muted mt-2 mb-0">Shown as plain text. Links were not opened.</p>
+            </div>
+        </section>
+
+        <!-- 4. Advice and disclaimer -->
+        <section class="alert alert-info notice" role="note">
+            <h2 class="h6">Before you act</h2>
+            <ul class="small mb-2">
+                <li>Contact the organisation using a phone number or website you already trust.</li>
+                <li>Never share your PIN, password or one-time code.</li>
+                <li>Do not send money or pay "fees" to receive a prize.</li>
+            </ul>
+            <p class="small mb-0">
+                This result is an automated assessment and is not a guarantee that a message is
+                fraudulent or safe.
+            </p>
+        </section>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <a href="{{ url_for('analyze') }}" class="btn btn-primary">Analyze another message</a>
+            {% if model_name %}
+            <span class="small text-muted">
+                Model: {{ model_name }}{% if test_metrics.f1 %} &middot; test F1-score
+                {{ "%.1f"|format(test_metrics.f1 * 100) }}%{% endif %}
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -10,17 +10,25 @@
             details you do not want stored.
         </p>
 
-        <form id="analyze-form" novalidate>
+        {% if error %}
+        <div class="alert alert-warning" role="alert">{{ error }}</div>
+        {% endif %}
+
+        <!-- A normal form POST: works even without JavaScript.
+             The hidden csrf_token field protects against cross-site request forgery. -->
+        <form id="analyze-form" method="post" action="{{ url_for('analyze') }}" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
             <label for="message" class="form-label fw-semibold">Message text</label>
             <!-- data-max-length is read by script.js for the character counter -->
             <textarea id="message" name="message" class="form-control message-box"
                       rows="8" maxlength="{{ max_length }}" data-max-length="{{ max_length }}"
                       placeholder="e.g. Congratulations! You have won a prize. Click the link to claim..."
-                      required></textarea>
+                      required>{{ message or "" }}</textarea>
 
-            <div class="d-flex justify-content-between align-items-center mt-2">
+            <div class="d-flex justify-content-between align-items-center mt-2 gap-2">
                 <div id="form-feedback" class="small text-danger" role="alert" aria-live="polite"></div>
-                <div class="small text-muted">
+                <div class="small text-muted text-nowrap">
                     <span id="char-count">0</span> / {{ max_length }} characters
                 </div>
             </div>
@@ -31,8 +39,9 @@
             </div>
         </form>
 
-        <!-- The result is inserted here by script.js -->
-        <div id="result" class="mt-4" aria-live="polite"></div>
+        <p class="small text-muted mt-4 mb-0">
+            Links in your message are treated as plain text. They are never opened or visited.
+        </p>
     </div>
 </div>
 {% endblock %}

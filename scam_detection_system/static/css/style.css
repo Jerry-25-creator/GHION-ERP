@@ -100,3 +100,55 @@ body {
         font-size: 1.6rem;
     }
 }
+
+/* Result page (Phase 3) */
+.section-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.result-scam h2 {
+    color: var(--warn);
+}
+
+.result-legitimate h2 {
+    color: var(--safe);
+}
+
+/* Confidence bar: a native <progress> element styled for all browsers */
+.confidence-bar {
+    width: 100%;
+    height: 0.6rem;
+    border: none;
+    border-radius: 1rem;
+    overflow: hidden;
+    appearance: none;
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.confidence-bar::-webkit-progress-bar {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.result-scam .confidence-bar::-webkit-progress-value { background-color: var(--warn); }
+.result-scam .confidence-bar::-moz-progress-bar { background-color: var(--warn); }
+.result-legitimate .confidence-bar::-webkit-progress-value { background-color: var(--safe); }
+.result-legitimate .confidence-bar::-moz-progress-bar { background-color: var(--safe); }
+
+.indicator-list li {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--warn);
+}
+
+/* Show the analysed message exactly as typed (line breaks kept, long words wrapped) */
+.analysed-message {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background-color: #f7f9fb;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+}
