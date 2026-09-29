@@ -1,0 +1,256 @@
+/* ------------------------------------------------------------
+   Scam Detection System - custom styles (on top of Bootstrap 5)
+   ------------------------------------------------------------ */
+
+:root {
+    --brand: #1f4e79;          /* calm navy blue */
+    --brand-light: #eaf1f8;
+    --safe: #1e7b4f;           /* green for "no obvious scam patterns" */
+    --safe-bg: #e9f6ef;
+    --warn: #b35900;           /* amber for "potential scam" (not alarming red) */
+    --warn-bg: #fff4e5;
+    --text-muted: #5f6b76;
+}
+
+body {
+    background-color: #f7f9fb;
+    color: #22303c;
+}
+
+/* Navigation bar and footer */
+.app-navbar {
+    background-color: var(--brand);
+}
+
+.app-footer {
+    background-color: #ffffff;
+    border-top: 1px solid #dde3ea;
+    color: var(--text-muted);
+}
+
+/* Home page hero */
+.hero {
+    background-color: var(--brand-light);
+    border-radius: 1rem;
+}
+
+.hero-text {
+    max-width: 720px;
+}
+
+/* "How it works" cards */
+.step-card {
+    border: 1px solid #dde3ea;
+    border-radius: 0.75rem;
+}
+
+.step-number {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background-color: var(--brand);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.notice {
+    border-radius: 0.75rem;
+}
+
+/* Analyze page */
+.message-box {
+    resize: vertical;
+    min-height: 180px;
+    font-size: 1rem;
+}
+
+/* Result cards (used from Phase 3) */
+.result-card {
+    border-radius: 0.75rem;
+    border-width: 1px;
+    border-style: solid;
+    padding: 1.25rem;
+}
+
+.result-legitimate {
+    background-color: var(--safe-bg);
+    border-color: var(--safe);
+}
+
+.result-scam {
+    background-color: var(--warn-bg);
+    border-color: var(--warn);
+}
+
+.result-info {
+    background-color: #ffffff;
+    border-color: #dde3ea;
+}
+
+/* Small screens */
+@media (max-width: 576px) {
+    .hero {
+        border-radius: 0.5rem;
+    }
+    .display-6 {
+        font-size: 1.6rem;
+    }
+}
+
+/* Result page (Phase 3) */
+.section-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.result-scam h2 {
+    color: var(--warn);
+}
+
+.result-legitimate h2 {
+    color: var(--safe);
+}
+
+/* Confidence bar: a native <progress> element styled for all browsers */
+.confidence-bar {
+    width: 100%;
+    height: 0.6rem;
+    border: none;
+    border-radius: 1rem;
+    overflow: hidden;
+    appearance: none;
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.confidence-bar::-webkit-progress-bar {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.result-scam .confidence-bar::-webkit-progress-value { background-color: var(--warn); }
+.result-scam .confidence-bar::-moz-progress-bar { background-color: var(--warn); }
+.result-legitimate .confidence-bar::-webkit-progress-value { background-color: var(--safe); }
+.result-legitimate .confidence-bar::-moz-progress-bar { background-color: var(--safe); }
+
+.indicator-list li {
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--warn);
+}
+
+/* Show the analysed message exactly as typed (line breaks kept, long words wrapped) */
+.analysed-message {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background-color: #f7f9fb;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+}
+
+/* Admin pages (Phase 4) */
+.footer-link {
+    color: var(--text-muted);
+}
+
+.stat-card {
+    border: 1px solid #dde3ea;
+    border-radius: 0.75rem;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.9rem;
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+}
+
+.text-scam { color: var(--warn); }
+.text-legitimate { color: var(--safe); }
+
+.badge-scam {
+    background-color: var(--warn-bg);
+    color: var(--warn);
+    border: 1px solid var(--warn);
+}
+
+.badge-legitimate {
+    background-color: var(--safe-bg);
+    color: var(--safe);
+    border: 1px solid var(--safe);
+}
+
+.metric-box {
+    background-color: var(--brand-light);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+}
+
+.metric-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.confusion-table th {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.cm-correct { background-color: var(--safe-bg); font-weight: 600; }
+.cm-wrong { background-color: var(--warn-bg); font-weight: 600; }
+
+/* Long messages in tables wrap instead of stretching the page */
+.message-cell {
+    min-width: 220px;
+    max-width: 480px;
+    overflow-wrap: anywhere;
+    font-size: 0.9rem;
+}
+
+.navbar .btn-link.nav-link {
+    text-decoration: none;
+}
+
+/* Accessibility and polish (Phase 5) */
+.skip-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 1000;
+    background: #ffffff;
+    color: var(--brand);
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+}
+
+/* Clearly visible keyboard focus */
+a:focus-visible,
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+    outline: 3px solid #f0b429;
+    outline-offset: 2px;
+}
+
+main:focus {
+    outline: none;
+}
+
+.example-btn {
+    font-size: 0.85rem;
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Simple shield icon in the site's navy colour -->
+  <path d="M16 2 4 6.5v8.2C4 22.3 9.2 28.3 16 30c6.8-1.7 12-7.7 12-15.3V6.5z" fill="#1f4e79"/>
+  <path d="m10.5 16.2 3.8 3.8 7.4-7.6" fill="none" stroke="#fff" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

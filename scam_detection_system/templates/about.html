@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}How It Works - Scam Detection System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-9">
+        <h1 class="h3 mb-3">How it works</h1>
+        <p class="lead">
+            ScamCheck uses a <strong>machine learning model</strong> that learned from thousands of
+            real text messages that people had already labelled as legitimate or spam/scam.
+        </p>
+
+        <section class="mb-4">
+            <h2 class="h5">From message to result</h2>
+            <ol class="mb-0">
+                <li class="mb-2"><strong>Cleaning.</strong> The text is converted to lowercase. Links, phone
+                    numbers, e-mail addresses and money amounts are replaced by placeholder words
+                    (for example every link becomes "urltoken"), because their presence matters more
+                    than their exact value. Links are never opened.</li>
+                <li class="mb-2"><strong>TF-IDF.</strong> The words and word pairs are turned into numbers.
+                    Words that are common in this message but rare in other messages get the highest weight.</li>
+                <li class="mb-2"><strong>Prediction.</strong> The model calculates the probability that the
+                    message is a scam. At 50% or more it is labelled "Potential Scam".</li>
+                <li><strong>Warning indicators.</strong> Separate, simple pattern checks point out common scam
+                    tactics (links, urgency, prizes, requests for a PIN...). They help explain the message but
+                    do not change the model's prediction.</li>
+            </ol>
+        </section>
+
+        {% if evaluation %}
+        {% set m = evaluation.selected_model_test_metrics %}
+        <section class="mb-4">
+            <h2 class="h5">How well does the model perform?</h2>
+            <p>
+                Three algorithms were compared (Naive Bayes, Logistic Regression and a Linear Support
+                Vector Machine). The <strong>{{ evaluation.selected_model }}</strong> was selected.
+                It was tested on {{ evaluation.split.test_size_rows }} messages it had never seen during training:
+            </p>
+            <div class="row g-3 mb-2">
+                <div class="col-6 col-md-3"><div class="metric-box">
+                    <span class="stat-label">Accuracy</span><span class="metric-value">{{ m.accuracy|percent }}</span>
+                    <span class="small text-muted d-block">messages classified correctly</span></div></div>
+                <div class="col-6 col-md-3"><div class="metric-box">
+                    <span class="stat-label">Precision</span><span class="metric-value">{{ m.precision|percent }}</span>
+                    <span class="small text-muted d-block">of flagged messages were really scams</span></div></div>
+                <div class="col-6 col-md-3"><div class="metric-box">
+                    <span class="stat-label">Recall</span><span class="metric-value">{{ m.recall|percent }}</span>
+                    <span class="small text-muted d-block">of scams were caught</span></div></div>
+                <div class="col-6 col-md-3"><div class="metric-box">
+                    <span class="stat-label">F1-score</span><span class="metric-value">{{ m.f1|percent }}</span>
+                    <span class="small text-muted d-block">balance of precision and recall</span></div></div>
+            </div>
+            <p class="small text-muted">
+                In the test, {{ m.confusion_matrix.fn }} of {{ m.confusion_matrix.fn + m.confusion_matrix.tp }}
+                scams were missed and {{ m.confusion_matrix.fp }} of
+                {{ m.confusion_matrix.fp + m.confusion_matrix.tn }} legitimate messages were wrongly flagged.
+                Real-world performance is likely to be lower (see limitations).
+            </p>
+        </section>
+        {% endif %}
+
+        <section class="mb-4">
+            <h2 class="h5">Understanding your result</h2>
+            <ul>
+                <li><strong>Potential Scam</strong> - the message resembles scam messages the model has seen.
+                    Verify the sender through an official channel before acting.</li>
+                <li><strong>No obvious scam patterns detected</strong> - the model did not recognise scam
+                    patterns. This is <em>not</em> a guarantee that the message is safe.</li>
+                <li><strong>Confidence</strong> - the model's estimated probability for its prediction.
+                    Low confidence means the model is unsure.</li>
+            </ul>
+        </section>
+
+        <section class="mb-4">
+            <h2 class="h5">Limitations</h2>
+            <ul>
+                <li>Machine learning predictions are not always correct.</li>
+                <li>New scam techniques may not be recognised.</li>
+                <li>The model learned from an English SMS dataset (the UCI SMS Spam Collection) that mostly
+                    contains UK and Singapore messages and labels <em>spam</em>, which is broader than scams.
+                    It may not recognise local mobile-money scams or messages in other languages.</li>
+                <li>A legitimate message can be incorrectly flagged, and a scam can be classified as legitimate.</li>
+                <li>The system is a detection aid and should not be treated as a guarantee of safety.</li>
+            </ul>
+        </section>
+
+        <section class="alert alert-info notice" role="note">
+            <h2 class="h6">Privacy</h2>
+            <p class="small mb-0">
+                Analysed messages are stored so the system can be monitored and improved. Phone numbers and
+                e-mail addresses are replaced with placeholders before saving, and no information about you
+                (such as your IP address) is stored. Avoid submitting passwords or other private details.
+            </p>
+        </section>
+
+        <a href="{{ url_for('analyze') }}" class="btn btn-primary">Analyze a message</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+# ---------------------------------------------------------------
+# Machine Learning-Based Scam Detection System - Python packages
+# Install with:  pip install -r requirements.txt
+# ---------------------------------------------------------------
+
+# Web framework
+Flask>=3.0,<4.0
+Flask-WTF>=1.2,<2.0          # CSRF protection for forms and AJAX requests
+python-dotenv>=1.0,<2.0      # Loads configuration from the .env file
+
+# Machine learning and data handling (used from Phase 2 onwards)
+scikit-learn>=1.4,<2.0
+pandas>=2.1,<3.0
+numpy>=1.26,<3.0
+joblib>=1.3,<2.0
+
+# Testing
+pytest>=8.0,<9.0

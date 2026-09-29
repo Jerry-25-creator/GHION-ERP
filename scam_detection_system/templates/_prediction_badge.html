@@ -1,0 +1,6 @@
+{# Small reusable badge: included by dashboard.html and history.html #}
+{% if item.prediction == "scam" %}
+<span class="badge badge-scam">Potential scam</span>
+{% else %}
+<span class="badge badge-legitimate">Legitimate</span>
+{% endif %}

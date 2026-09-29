@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Admin Login - Scam Detection System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-sm-8 col-md-6 col-lg-4">
+        <h1 class="h4 mb-3">Admin login</h1>
+
+        {% if error %}
+        <div class="alert alert-warning" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% if no_admin_yet %}
+        <div class="alert alert-info small" role="note">
+            No admin account exists yet. In the project folder run
+            <code>python create_admin.py</code> to create one.
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('admin.login') }}" class="card card-body">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-control"
+                       maxlength="50" autocomplete="username" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-control"
+                       maxlength="200" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Log in</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,624 @@
+# Machine Learning-Based Scam Detection System
+
+A web application that analyses a text message and predicts whether it is
+**Legitimate** or a **Potential Scam**, using a machine learning model trained and
+evaluated on a real labelled dataset.
+
+> **Important:** every result is an automated assessment, not a guarantee. The
+> system can be wrong in both directions. Users should always verify suspicious
+> messages independently.
+
+---
+
+## Development status
+
+The project was built in five phases; all are complete.
+
+| Phase | Content | Status |
+|-------|---------|--------|
+| 1 | Project structure, environment, Flask app, basic frontend, README | Done |
+| 2 | Dataset preparation, `train_model.py`, TF-IDF, model training and evaluation | Done |
+| 3 | Model integrated with Flask, `POST /api/predict`, analysis results | Done |
+| 4 | SQLite database, analysis history, admin dashboard | Done |
+| 5 | Full test suite, security hardening, UI polish, final documentation | Done |
+
+---
+
+## 1. Problem being solved
+
+Scam messages (fake prizes, fake bank or mobile-money alerts, requests for PINs,
+"urgent" payment demands) cause real financial loss. Many people cannot easily tell
+whether a message is genuine. This system gives a quick, explainable second opinion
+based on patterns learned from real labelled messages.
+
+## 2. Features
+
+- Landing page that explains the system and its limits
+- Analysis page with a large text area, character counter, Analyze and Clear buttons,
+  and "Try an example" buttons for demonstrations
+- "How it works" page explaining the method, model performance and limitations
+- ML prediction (Legitimate / Potential Scam) with a confidence estimate
+- Warning indicators, shown **separately** from the ML prediction
+- REST API: `GET /api/health`, `POST /api/predict`
+- Analysis history stored in SQLite (phone numbers and e-mails redacted)
+- Admin login (hashed passwords) with dashboard: statistics, recent analyses, model performance
+- History page with filter, paging and delete
+- Friendly error pages; no stack traces shown to users
+- Security: CSRF protection, input limits, rate limiting, login lockout, strict security
+  headers, secrets in `.env` (see section 13)
+- Works fully offline: Bootstrap is stored in the project, nothing is loaded from other sites
+
+## 3. Technology stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Python 3, Flask, Flask-WTF (CSRF) |
+| Machine learning | scikit-learn, pandas, NumPy, joblib |
+| Frontend | HTML5, CSS3, JavaScript, Bootstrap 5 |
+| Database | SQLite (designed for later migration to MySQL) |
+| Testing | pytest |
+
+## 4. System architecture
+
+```
+ Browser (HTML / CSS / JS)
+        |  HTTP  (form page + JSON requests to /api/...)
+        v
+ Flask application (app.py)
+        |-- input validation, CSRF, error handling
+        |-- preprocessing  -> TF-IDF vectorizer (models/vectorizer.pkl)
+        |                  -> trained classifier  (models/model.pkl)
+        |-- warning-indicator checks (separate from the ML model)
+        |-- SQLite database (database/database.db)  <- db.py (all SQL in one file)
+        |-- admin pages: login, dashboard, history  <- admin.py (Blueprint)
+        v
+ JSON / HTML response to the browser
+
+ Offline:  data/scam_dataset.csv --> train_model.py --> models/*.pkl + evaluation results
+```
+
+The model is trained **once, offline** by `train_model.py`. The web application
+only loads the saved model and uses it for predictions.
+
+### Project structure
+
+```
+scam_detection_system/
+├── app.py               Flask application (routes, error handling, security headers)
+├── admin.py             Admin login, dashboard and history pages (Blueprint)
+├── db.py                All database access (SQLite, parameterised queries)
+├── create_admin.py      Creates an admin account (asks for a password)
+├── setup.bat            Double-click: one-time setup (Windows)
+├── start.bat            Double-click: start the app and open the browser (Windows)
+├── security.py          Rate limiting (login lockout, analyses per minute)
+├── config.py            Settings read from environment variables / .env
+├── train_model.py       ML training and evaluation pipeline
+├── prepare_dataset.py   Converts a downloaded dataset to data/scam_dataset.csv
+├── scam_detector/       Reusable ML code shared by training and the web app
+│   ├── dataset.py       Load, validate and standardise the dataset
+│   ├── preprocessing.py Text cleaning used before TF-IDF
+│   ├── predictor.py     Loads the saved model and makes predictions
+│   └── indicators.py    Rule-based warning indicators (explanations only)
+├── requirements.txt     Python packages
+├── pytest.ini           Test configuration
+├── .env.example         Example configuration (copy to .env)
+├── .gitignore
+├── data/
+│   ├── README.md        Expected dataset format
+│   └── scam_dataset.csv SMS Spam Collection (UCI), standard format
+├── models/              model.pkl, vectorizer.pkl, evaluation_results.json,
+│                        model_comparison.csv (generated by train_model.py)
+├── database/
+│   ├── schema.sql       SQLite tables (created automatically)
+│   ├── schema_mysql.sql Same tables for a future MySQL migration
+│   └── database.db      The database file (generated, not in Git)
+├── templates/           base, index, analyze, result, about, error, login, dashboard, history
+├── static/
+│   ├── css/style.css    Custom styles
+│   ├── js/script.js     Counter, Clear, examples, input checks
+│   ├── images/          favicon.svg
+│   └── vendor/          Bootstrap 5.3.3 (MIT licence), stored locally
+├── logs/                app.log - errors and security events (generated, not in Git)
+├── docs/
+│   └── viva_guide.md    Key concepts and likely questions, in plain language
+└── tests/               Automated tests (see section 12)
+```
+
+## 5. Machine learning methodology
+
+```
+Dataset -> Data cleaning -> Exploratory analysis -> Train/test split (80/20, stratified)
+        -> Text preprocessing -> TF-IDF -> Train 3 models (5-fold CV on training set)
+        -> Evaluate on test set -> Select model -> Save with joblib -> Flask predictions
+```
+
+### Data cleaning (`scam_detector/dataset.py`)
+
+1. Column names and label values are standardised (`ham`/`spam` → `0`/`1`, etc.).
+2. Rows with a missing or empty message are removed.
+3. Rows with an unrecognised label are removed.
+4. Exact duplicate messages are removed. Otherwise the same message could appear in
+   both the training and the test set, which would make the test scores look better
+   than they really are. (The SMS Spam Collection contains 414 duplicates.)
+
+### Text preprocessing (`scam_detector/preprocessing.py`)
+
+| Step | Example |
+|------|---------|
+| Lower-case, Unicode normalisation, trim whitespace | `"  WIN Now "` → `"win now"` |
+| URLs → `urltoken` | `http://win.biz/x`, `www.x.com`, `bit.ly/x` |
+| E-mail addresses → `emailtoken` | `winner@prize.com` |
+| Money amounts → `moneytoken` | `£1000`, `5,000,000 UGX`, `shs 5000` |
+| Phone numbers (7+ digits) → `phonetoken` | `0772 123 456`, `09061234567` |
+| Other numbers → `numtoken` | `claim in 24 hours` |
+| `!` → `exclamationmark` | `"Congratulations!!"` |
+| Remaining punctuation removed | `"you're"` → `"you re"` |
+
+Information such as links, phone numbers and amounts is **replaced by a token, not
+deleted**, because it is a strong scam signal, while the exact value rarely repeats.
+Stop-words are not removed ("your", "now" and "call" are common in scams), and TF-IDF
+already down-weights very common words. The cleaning function is stored inside the
+saved vectorizer, so the web app uses exactly the same preprocessing as training.
+
+### Why TF-IDF?
+
+ML models need numbers, not words. **TF-IDF (Term Frequency - Inverse Document
+Frequency)** gives each word in a message a score that is:
+
+- **high** when the word appears often in *this* message (term frequency), and
+- **lower** when the word appears in *most* messages (inverse document frequency),
+  so very common words like "the" count for little.
+
+Words such as "prize", "claim" or "urgent" therefore get strong weights in scam
+messages. TF-IDF is simple, fast, easy to explain and works very well for short texts
+like SMS messages.
+
+Settings used: single words **and word pairs** (`ngram_range=(1, 2)`, so "claim prize"
+is a feature), terms must appear in at least 2 messages (`min_df=2`), and
+`sublinear_tf=True` (a word repeated 10 times is not 10 times more important).
+The vectorizer is fitted **on the training set only**.
+
+### Why these three algorithms?
+
+| Algorithm | Why it was considered |
+|-----------|----------------------|
+| Multinomial Naive Bayes | Classic baseline for text classification; very fast; works well with word counts/TF-IDF |
+| Logistic Regression | Strong linear model; gives real probabilities; coefficients are easy to interpret |
+| Linear SVM | Often the most accurate linear model for high-dimensional sparse text data |
+
+Each model's main setting (Naive Bayes `alpha`, Logistic Regression and SVM `C`) is
+tuned with a small grid search using **5-fold stratified cross-validation on the
+training set only**. Logistic Regression and SVM use `class_weight="balanced"` so the
+smaller scam class is not ignored.
+
+### How the final model is selected
+
+The model is not chosen arbitrarily. Selection criteria (documented in `train_model.py`):
+
+1. Highest **F1-score for the scam class** in 5-fold cross-validation on the training
+   set. The test set is *not* used to choose, so the test results remain an honest
+   estimate of performance on new messages.
+2. If another model's CV F1-score is within **0.01** of the best, the one with the
+   higher **CV scam recall** is chosen (fewer missed scams).
+3. The model must provide a **genuine probability estimate** for the confidence value.
+   Linear SVM does not produce probabilities on its own, so it is wrapped in
+   scikit-learn's `CalibratedClassifierCV`, which learns a calibrated mapping from SVM
+   scores to probabilities using cross-validation. No confidence value is invented.
+
+### Evaluation metrics explained
+
+For the **scam** class:
+
+- **True Positive (TP):** a scam correctly flagged as scam
+- **False Positive (FP):** a legitimate message wrongly flagged as scam
+- **False Negative (FN):** a scam wrongly marked legitimate (a *missed scam*)
+- **True Negative (TN):** a legitimate message correctly marked legitimate
+
+| Metric | Formula | Meaning |
+|--------|---------|---------|
+| Accuracy | (TP + TN) / all | Share of all messages classified correctly. Can be misleading when classes are imbalanced. |
+| Precision | TP / (TP + FP) | Of the messages flagged as scams, how many really were scams. Low precision = many false alarms. |
+| Recall | TP / (TP + FN) | Of all real scams, how many were caught. Low recall = many missed scams. |
+| F1-score | 2 × P × R / (P + R) | Harmonic mean of precision and recall; high only when both are high. |
+
+**Confusion matrix** - a 2×2 table showing the counts of TN, FP, FN and TP, so you can
+see exactly which kinds of mistakes the model makes:
+
+```
+                    Predicted legitimate   Predicted scam
+Actual legitimate          TN                   FP
+Actual scam                FN                   TP
+```
+
+**Why false negatives matter:** a false negative tells a user that a scam looks fine,
+which may lead them to send money or reveal a PIN. A false positive only causes extra
+caution. That is why scam-class **recall** receives special attention.
+
+### Results on the SMS Spam Collection
+
+Test set: 1,032 unseen messages (128 scams). Precision, recall and F1 are for the scam class.
+Results may differ very slightly with other library versions.
+
+| Model | Accuracy | Precision | Recall | F1 Score | CV F1 |
+|-------|---------:|----------:|-------:|---------:|------:|
+| Multinomial Naive Bayes | 0.9874 | 0.9752 | 0.9219 | 0.9478 | 0.9486 |
+| Logistic Regression | 0.9884 | 0.9603 | 0.9453 | 0.9528 | 0.9554 |
+| **Linear SVM (calibrated)** | **0.9932** | **0.9840** | **0.9609** | **0.9723** | **0.9573** |
+
+**Selected: Linear SVM (calibrated).** All three CV F1-scores were within 0.01, so the
+tie-break (criterion 2) applied, and the SVM had the highest CV scam recall (0.9436).
+On the test set it missed 5 of 128 scams and wrongly flagged 2 of 904 legitimate
+messages:
+
+```
+                    Predicted legitimate   Predicted scam
+Actual legitimate          902                   2
+Actual scam                  5                 123
+```
+
+Full results are saved in `models/evaluation_results.json` and
+`models/model_comparison.csv`.
+
+**No evaluation on training data:** the dataset is split into training and test sets
+(stratified, so both keep the same scam/legitimate ratio). The TF-IDF vectorizer is
+fitted on the training set only, and all reported metrics come from the unseen test set.
+
+## 6. Dataset requirements
+
+The project includes the real, publicly available **SMS Spam Collection** (UCI, CC BY
+4.0) at `data/scam_dataset.csv`. No data was invented. To use a different dataset,
+replace this file. See [`data/README.md`](data/README.md) for the source, citation and format.
+
+| Column | Values |
+|--------|--------|
+| `message` | the message text |
+| `label` | `0` = legitimate, `1` = scam |
+
+Common alternative names (`text`, `v1`/`v2`, `ham`/`spam`, ...) are standardised
+automatically. To convert a downloaded file:
+`python prepare_dataset.py "C:\path\to\file"`.
+
+## 7. Installation (Windows 11 + VS Code)
+
+Requirements: **Python 3.10 or newer** (tick "Add python.exe to PATH" when installing).
+
+### Quick start: double-click (no commands needed)
+
+1. Double-click **`setup.bat`** once. It checks Python, creates `venv`, installs the
+   packages, creates `.env` with a random `SECRET_KEY`, trains the model, offers to create
+   an admin account and runs the tests. Running it again is safe - finished steps are skipped.
+2. Double-click **`start.bat`** whenever you want to use the app. It starts the server and
+   opens <http://127.0.0.1:5000> in your browser. Close the black window to stop the app.
+
+If Windows shows "Windows protected your PC", click **More info → Run anyway** (the files
+are plain text scripts; open them in Notepad to see exactly what they do).
+
+### Manual installation (VS Code terminal)
+
+Open the `scam_detection_system` folder in VS Code, open a terminal
+(**Terminal → New Terminal**) and run:
+
+```bat
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Paste the printed value into `.env` as `SECRET_KEY=...`.
+
+> If PowerShell blocks `venv\Scripts\activate`, run once:
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or use a Command Prompt terminal.
+
+In VS Code, press `Ctrl+Shift+P` → **Python: Select Interpreter** → choose the one
+inside `venv`.
+
+## 8. Training the model
+
+```bat
+python train_model.py
+```
+
+This takes about 15-60 seconds. It prints each pipeline step, the comparison table,
+confusion matrices, the selected model and why it was chosen, then saves:
+
+- `models/model.pkl` - the trained classifier
+- `models/vectorizer.pkl` - the fitted TF-IDF vectorizer (including the cleaning step)
+- `models/evaluation_results.json` - all metrics, selection reason and dataset statistics
+- `models/model_comparison.csv` - the comparison table (can be opened in Excel)
+
+Options: `--data <file>`, `--test-size 0.2`, `--seed 42`.
+
+## 9. Running the web application
+
+Create an administrator account once (you will be asked for a username and password;
+at least 10 characters with letters and numbers - the password is hidden while typing):
+
+```bat
+python create_admin.py
+```
+
+Run the same command again with an existing username to change its password.
+
+```bat
+python app.py
+```
+
+Open <http://127.0.0.1:5000> in a browser. Stop the server with `Ctrl+C`.
+
+The model is loaded once when the app starts. If `models/model.pkl` is missing, the
+pages still open and the user is told the model must be trained first.
+
+### How a message is analysed
+
+```
+Browser form (POST /analyze, with CSRF token)   or   JSON client (POST /api/predict)
+        |
+        v
+validate_message()   empty? too long? not text? -> friendly error (HTTP 400)
+        |
+        v
+ScamPredictor.predict()                    (scam_detector/predictor.py)
+   |-- vectorizer.transform()   clean_text + TF-IDF (same as training)
+   |-- model.predict_proba()    probability of "scam"; >= 0.5 -> "scam"
+   |-- find_indicators()        rule-based warning signs (do NOT change the prediction)
+        |
+        v
+result.html (web page)   or   JSON response (API)
+```
+
+### Explainability: ML prediction vs warning indicators
+
+The results page shows two clearly separated sections:
+
+1. **Machine learning prediction** - "Potential Scam" or "No obvious scam patterns
+   detected", with the model's confidence. This is the only thing that decides the
+   classification.
+2. **Detected warning indicators** - simple pattern checks (`scam_detector/indicators.py`)
+   that point out common scam tactics in the text: *Contains a link*, *Urgent language*,
+   *Prize or reward claim*, *Requests sensitive information*, *Suspicious financial
+   language*, *Account threat or problem*, *Suspicious call to action* and
+   *Attention-grabbing formatting*. They help the user understand the message but
+   never override the model.
+
+The two can disagree: a message may be predicted legitimate but still contain a link,
+or be predicted a scam with no rule-based indicators. That is expected - the model
+learned patterns from data that simple rules do not capture.
+
+### Confidence
+
+Confidence is the model's estimated probability for the predicted class (between 50%
+and 100%). The Linear SVM is calibrated (`CalibratedClassifierCV`, sigmoid method), so
+this is a genuine probability estimate learned from data, not an invented number. The
+page shows a certainty level (High >= 90%, Moderate >= 70%, Low < 70%) and never
+displays "100%" (values above 99.5% are shown as "over 99%").
+
+## 10. API documentation
+
+### `GET /api/health`
+
+```json
+{ "status": "ok" }
+```
+
+### `POST /api/predict`
+
+Request (header `Content-Type: application/json`):
+
+```json
+{ "message": "Congratulations! You have won 5,000,000 UGX. Click this link immediately to claim your prize." }
+```
+
+Response `200 OK`:
+
+```json
+{
+  "prediction": "scam",
+  "confidence": 0.985,
+  "scam_probability": 0.985,
+  "indicators": [
+    "Urgent language",
+    "Prize or reward claim",
+    "Suspicious financial language",
+    "Suspicious call to action"
+  ],
+  "disclaimer": "This is an automated assessment by a machine learning model, not a guarantee. Always verify suspicious messages independently."
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `prediction` | `"scam"` or `"legitimate"` (from the ML model) |
+| `confidence` | Probability of the predicted class (0.5 - 1.0) |
+| `scam_probability` | Probability that the message is a scam (0 - 1) |
+| `indicators` | Names of rule-based warning signs found (may be empty) |
+
+Errors are returned as JSON `{ "error": "..." }`:
+
+| Status | When |
+|--------|------|
+| 400 | Invalid JSON, missing `message`, not text, empty, or longer than `MAX_MESSAGE_LENGTH` |
+| 405 | Method other than POST |
+| 413 | Request body larger than 64 KB |
+| 415 | Body is not JSON |
+| 503 | The model has not been trained / cannot be loaded |
+
+Try it from a second VS Code terminal while the app is running (PowerShell):
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:5000/api/predict -Method Post -ContentType "application/json" -Body '{"message": "You have won a prize! Call 09061234567 now"}'
+```
+
+or with curl (Command Prompt):
+
+```bat
+curl -X POST http://127.0.0.1:5000/api/predict -H "Content-Type: application/json" -d "{\"message\": \"You have won a prize! Call 09061234567 now\"}"
+```
+
+**CSRF and the API:** the web form (`POST /analyze`) is protected with a CSRF token.
+`/api/predict` is deliberately exempt because it is a stateless JSON API for other
+programs (e.g. a future mobile app): it uses no login or cookies, so a forged
+cross-site request gains nothing that could not be done directly. Requiring the JSON
+content type also prevents ordinary HTML forms on other websites from posting to it.
+
+## 11. Database and admin dashboard
+
+### Tables (`database/schema.sql`)
+
+**analysis_history** - one row per analysed message
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER | Primary key |
+| `message` | TEXT | Message text, with phone numbers/e-mails replaced by `[number]`/`[email]` |
+| `prediction` | VARCHAR(20) | `scam` or `legitimate` |
+| `confidence` | REAL | Probability of the predicted class (0-1) |
+| `scam_probability` | REAL | Probability of scam (0-1) |
+| `indicators` | TEXT | JSON list of warning-indicator names |
+| `source` | VARCHAR(10) | `web` or `api` |
+| `model_name` | VARCHAR(100) | Model that made the prediction |
+| `analyzed_at` | VARCHAR(32) | UTC time, ISO 8601 |
+
+**admin_users** - `id`, `username` (unique), `password_hash`, `created_at`, `last_login_at`
+
+The database file and tables are created automatically when the app starts.
+
+**Privacy:** nothing about the person using the site is stored (no IP address, browser
+details or account). Phone numbers (7+ digits) and e-mail addresses inside messages are
+replaced before storage; the prediction itself uses the original text. This can be
+turned off with `REDACT_STORED_MESSAGES=0` in `.env`. Admins can delete records.
+
+**Database errors:** if the database cannot be written, the user still receives their
+prediction (the error is logged). Admin pages show a friendly "Database unavailable" page.
+
+### Admin pages
+
+| Page | Content |
+|------|---------|
+| `/login` | Username + password form (CSRF-protected). "Admin login" link in the footer. |
+| `/dashboard` | Total analysed, legitimate vs scam counts and %, average confidence, 10 most recent analyses, selected model's test metrics, confusion matrix, model comparison and selection reason |
+| `/history` | All records, newest first, 20 per page; filter by prediction; delete a record |
+
+Authentication: passwords are stored only as salted **scrypt** hashes (Werkzeug);
+the session is cleared on login (prevents session fixation) and expires after
+`ADMIN_SESSION_MINUTES` (default 60); logout and delete are POST forms with CSRF tokens;
+the same error is shown for a wrong username or password, and a failed login takes the
+same time either way, so valid usernames cannot be discovered; admin pages are sent with
+`Cache-Control: no-store`.
+
+### Migrating to MySQL later
+
+1. Create the tables with `database/schema_mysql.sql`.
+2. In `db.py`, replace `sqlite3.connect(...)` with a MySQL driver connection
+   (e.g. `mysql-connector-python`) and change the `?` placeholders to `%s`.
+3. Copy existing rows (e.g. export to CSV from SQLite and import into MySQL).
+
+All SQL is in `db.py`, so no other file needs to change.
+
+## 12. Testing
+
+```bat
+pytest -v
+```
+
+Expected result: **106 passed, 5 xfailed**. Tests that need the trained model are
+skipped automatically if `python train_model.py` has not been run yet. Every test uses a
+temporary database and temporary folders, so the real database and model are never changed.
+
+| File | What it tests |
+|------|---------------|
+| `tests/test_model.py` | Dataset loading (standard, Kaggle and UCI formats), cleaning (missing values, unknown labels, duplicates), friendly dataset errors, label standardisation, text preprocessing, warning indicators, trained-model predictions |
+| `tests/test_training.py` | Train/test split has **no overlap** and keeps the class ratio, model-selection rule, the full training pipeline end-to-end (on a small artificial dataset, written to a temporary folder), dataset/argument errors |
+| `tests/test_api.py` | Pages, `GET /api/health`, `POST /api/predict` (scam, legitimate, empty, whitespace, non-text, missing key, wrong JSON type, too long, not JSON, malformed JSON, GET not allowed, missing model), the analyze form, HTML escaping, CSRF |
+| `tests/test_database.py` | Tables created, storing and reading analyses, statistics, redaction of phone numbers/e-mails, SQL-injection text stored harmlessly, paging/filtering, predictions saved, prediction still works if the database fails, password hashing and rules, login/logout, admin pages require login, dashboard, history, delete |
+| `tests/test_security.py` | Rate limiter, login lockout, analysis rate limit, security headers, HSTS over HTTPS, request size limit, no external resources, 500 errors without stack traces, site still works with an unusable database |
+| `tests/test_examples.py` | The trained model against labelled example messages (`tests/example_messages.py`) |
+
+### Example test messages
+
+`tests/example_messages.py` contains 18 example messages written for testing (never used
+for training), including mobile-money style scams. The current model classifies all 18
+correctly.
+
+It also contains **5 known difficult messages** that the model gets wrong. They are marked
+as expected failures (`xfail`) and are kept on purpose as evidence of the model's limits:
+
+| Message (shortened) | Truth | Scam probability | Why it is difficult |
+|---------------------|-------|-----------------:|---------------------|
+| "Hi, this is your manager... buy three gift cards... send me the codes" | Scam | 3% | No links, numbers or prize words |
+| "I am a soldier on a peace mission... move some funds. You will get 30 percent" | Scam | 17% | Advance-fee scam style is rare in the dataset |
+| "Hello mum, I lost my phone, this is my new number. Please send me 200,000" | Scam | 9% | Impersonation scam; sounds personal |
+| "Your MTN MoMo transaction of UGX 20,000 to John was successful..." | Legitimate | 88% | Genuine transaction alerts contain amounts, like spam |
+| "Dear customer, your electricity token is 1234-5678" | Legitimate | 94% | The digits look like a phone number |
+
+This shows why the result is presented as "Potential Scam" rather than a verdict, and why
+local, up-to-date training data is the most important future improvement.
+
+## 13. Security measures
+
+- Secret key and settings come from environment variables (`.env`), never from source code
+- `.env`, the database and generated model files are excluded from Git
+- CSRF protection (Flask-WTF) for the browser form; stateless JSON API exempt (see API section)
+- Maximum message length and maximum request size
+- Security headers (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options)
+- User text is displayed with Jinja2 auto-escaping (no HTML/script injection); invisible
+  control characters are removed; server-side validation on every request
+- Submitted URLs are **never opened, fetched or executed**, and are shown as plain
+  (non-clickable) text
+- Model files are loaded only from the local `models/` folder (pickle files can run
+  code, so never load `.pkl` files from untrusted sources)
+- Friendly error pages; stack traces are only written to the server log
+- **Rate limiting** (`security.py`): after 5 failed logins from one IP address, logins are
+  blocked for 15 minutes (even with the correct password); at most 30 analyses per IP per
+  minute. Both are configurable in `.env` and return HTTP 429 with a friendly message.
+- **Strict Content-Security-Policy**: scripts, styles and images only from this site, no
+  inline scripts, no plugins; plus `Permissions-Policy`, `Cross-Origin-Opener-Policy`,
+  and `Strict-Transport-Security` when served over HTTPS
+- Bootstrap is served locally, so no third-party website is contacted
+- `FLASK_DEBUG` defaults to 0, and the app refuses to start in debug mode on a
+  network-visible address (the Werkzeug debugger can run code)
+- Errors and security events are logged to `logs/app.log`; message text is never logged
+- Parameterised SQL queries only (`?` placeholders) - no SQL injection
+- Admin passwords stored as salted scrypt hashes; no default or hard-coded passwords
+- Admin sessions expire; session cleared at login; logout/delete require POST + CSRF
+- Minimal data stored; phone numbers and e-mails redacted before storage
+
+## 14. Limitations
+
+- Machine learning predictions are not always correct.
+- New scam techniques that do not resemble the training data may not be recognised.
+- Performance depends heavily on the quality, size and relevance of the dataset.
+  The SMS Spam Collection is English, mostly from the UK and Singapore (collected
+  around 2012), and labels **spam** (including advertising), which is broader than
+  **scam**. It does not represent local mobile-money scams well.
+- High test scores on one dataset do not guarantee the same accuracy on messages from
+  other countries, languages or time periods.
+- A legitimate message can be incorrectly flagged as a scam (false positive).
+- A scam message can be incorrectly classified as legitimate (false negative).
+- The model misses scams that contain no links, numbers or prize words (e.g. gift-card,
+  impersonation and advance-fee scams) and can flag genuine transaction alerts - see the
+  known difficult messages in section 12.
+- Only English is supported; messages in other languages (e.g. Luganda, Swahili) are
+  mostly classified as legitimate because the model does not know their words.
+- The warning indicators are simple English pattern checks and can miss or over-report signs.
+- Rate-limit counters are kept in memory: they reset when the server restarts and are not
+  shared between several server processes. SQLite suits a single server with modest traffic.
+- The system must not be treated as a guarantee of safety.
+
+## 15. Future improvements
+
+The code is organised so these can be added later without a rewrite:
+
+- SMS gateway integration and real-time detection
+- Email scam and URL/phishing detection
+- WhatsApp/message analysis where legally and technically possible
+- Mobile application using the existing REST API
+- Multilingual detection (e.g. Luganda, Swahili)
+- Transformer models such as BERT
+- Migration from SQLite to MySQL
+- Collect and label local scam messages (with consent and anonymisation) and retrain
+- Let users report wrong predictions, and use reviewed reports to retrain the model
+- Periodic retraining and monitoring for "concept drift" as scam styles change
+- Adjustable decision threshold (e.g. favour recall even more for high-risk users)
+- Shared rate limiting (e.g. Redis) and a production WSGI server (e.g. waitress on Windows)
