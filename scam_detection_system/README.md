@@ -88,6 +88,8 @@ scam_detection_system/
 ├── admin.py             Admin login, dashboard and history pages (Blueprint)
 ├── db.py                All database access (SQLite, parameterised queries)
 ├── create_admin.py      Creates an admin account (asks for a password)
+├── setup.bat            Double-click: one-time setup (Windows)
+├── start.bat            Double-click: start the app and open the browser (Windows)
 ├── security.py          Rate limiting (login lockout, analyses per minute)
 ├── config.py            Settings read from environment variables / .env
 ├── train_model.py       ML training and evaluation pipeline
@@ -279,6 +281,19 @@ automatically. To convert a downloaded file:
 ## 7. Installation (Windows 11 + VS Code)
 
 Requirements: **Python 3.10 or newer** (tick "Add python.exe to PATH" when installing).
+
+### Quick start: double-click (no commands needed)
+
+1. Double-click **`setup.bat`** once. It checks Python, creates `venv`, installs the
+   packages, creates `.env` with a random `SECRET_KEY`, trains the model, offers to create
+   an admin account and runs the tests. Running it again is safe - finished steps are skipped.
+2. Double-click **`start.bat`** whenever you want to use the app. It starts the server and
+   opens <http://127.0.0.1:5000> in your browser. Close the black window to stop the app.
+
+If Windows shows "Windows protected your PC", click **More info → Run anyway** (the files
+are plain text scripts; open them in Notepad to see exactly what they do).
+
+### Manual installation (VS Code terminal)
 
 Open the `scam_detection_system` folder in VS Code, open a terminal
 (**Terminal → New Terminal**) and run:
